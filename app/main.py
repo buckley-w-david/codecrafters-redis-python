@@ -1,11 +1,16 @@
 import asyncio
 
+from . import command
+from . import resp
+
 async def handler(reader, writer):
     while True:
-        data = await reader.read(1024)
+        data = await reader.read(1024) # FIXME: fixed length is wrong
         if not data:
             break
-        writer.write(b"+PONG\r\n")
+        cmd, _ = resp.Array.decode(data)
+        response = await command.exec(cmd)
+        writer.write(response.data.encode())
         await writer.drain()
     writer.close()
     await writer.wait_closed()
