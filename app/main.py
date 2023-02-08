@@ -1,13 +1,14 @@
 import socket
 
-PONG=b"+PONG\r\n"
-
 def main():
     server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
     conn, _ = server_socket.accept()
     with conn:
-        _ = conn.recv(1024)
-        conn.sendall(PONG)
+        while True:
+            data = conn.recv(1024)
+            if not data:
+                break
+            conn.sendall(b"+PONG\r\n")
 
 
 if __name__ == "__main__":
