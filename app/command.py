@@ -30,5 +30,5 @@ VTABLE = {
 }
 
 async def exec(command: resp.Array) -> resp.RespObject:
-    cmd = Command(command.data[0].data)
+    cmd = Command(command.data[0].data.upper())
     return await VTABLE[cmd](len(command.data), command.data)
