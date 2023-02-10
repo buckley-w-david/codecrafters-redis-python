@@ -10,7 +10,7 @@ async def handler(reader, writer):
             break
         cmd, _ = resp.Array.decode(data)
         response = await command.exec(cmd)
-        writer.write(response.data.encode())
+        writer.write(response.encode())
         await writer.drain()
     writer.close()
     await writer.wait_closed()
