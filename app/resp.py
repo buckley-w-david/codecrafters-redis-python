@@ -1,3 +1,4 @@
+import asyncio
 from typing import Protocol, Any
 
 class InvalidEncodingError(Exception):
@@ -10,7 +11,7 @@ class RespObject(Protocol):
         ...
 
     @classmethod
-    def decode(cls, data: bytes) -> tuple['RespObject', int]:
+    async def decode(cls, reader: asyncio.StreamReader) -> 'RespObject':
         ...
 
 class SimpleString:
@@ -21,10 +22,9 @@ class SimpleString:
         return b'+%s\r\n' % self.data
 
     @classmethod
-    def decode(cls, data: bytes) -> tuple['SimpleString', int]:
-        s, _ = data.split(b"\r\n", 1)
-        #                        str + \r\n
-        return SimpleString(s[1:]), len(s) + 2
+    async def decode(cls, reader: asyncio.StreamReader) -> 'SimpleString':
+        s = await reader.readuntil(b"\r\n")
+        return SimpleString(s[:-2])
 
 class Error(SimpleString):
     pass
@@ -37,9 +37,9 @@ class Integer:
         ...
 
     @classmethod
-    def decode(cls, data: bytes) -> tuple['Integer', int]:
-        s, _ = data.split(b"\r\n", 1)
-        return Integer(int(s[1:])), len(s) + 2
+    async def decode(cls, reader: asyncio.StreamReader) -> 'Integer':
+        i = await reader.readuntil(b"\r\n")
+        return Integer(int(i[:-2]))
 
 class BulkString:
     def __init__(self, data: bytes):
@@ -49,11 +49,13 @@ class BulkString:
         return b'$%d\r\n%s\r\n' % (len(self.data), self.data)
 
     @classmethod
-    def decode(cls, data: bytes) -> tuple['BulkString', int]:
-        prefix, string = data.split(b"\r\n", 1)
-        length = int(prefix.decode()[1:])
-        #                                   prefix   +  \r\n + string + \r\n
-        return BulkString(string[:length]), len(prefix) + 2 + length + 2
+    async def decode(cls, reader: asyncio.StreamReader) -> 'BulkString':
+        i = await reader.readuntil(b"\r\n")
+        length = int(i[:-2])
+        s = await reader.readexactly(length)
+        # Throw away ending \r\n
+        await reader.readexactly(2)
+        return BulkString(s)
 
 NULL = "$-1\r\n"
 
@@ -65,29 +67,27 @@ class Array:
         return b'*%d\r\n%s' % (len(self.data), b"\r\n".join(obj.encode() for obj in self.data))
 
     @classmethod
-    def decode(cls, data: bytes) -> tuple['Array', int]:
-        prefix, data = data.split(b"\r\n", 1)
-        length = int(prefix.decode()[1:])
+    async def decode(cls, reader: asyncio.StreamReader) -> 'Array':
+        i = await reader.readuntil(b"\r\n")
+        length = int(i[:-2])
 
-        offset = 0
         elements = []
         for _ in range(length):
-            elem, l = decode(data[offset:])
+            elem = await decode(reader)
             elements.append(elem)
-            offset += l
+        return Array(elements)
 
-        return Array(elements), offset + len(prefix) + 2
-
-def decode(data: bytes) -> tuple[RespObject, int]:
+async def decode(reader: asyncio.StreamReader) -> RespObject:
     # FIXME: This is a little gross
-    if data.startswith(b"+"):
-        return SimpleString.decode(data)
-    elif data.startswith(b"-"):
-        return Error.decode(data)
-    elif data.startswith(b":"):
-        return Integer.decode(data)
-    elif data.startswith(b"$"):
-        return BulkString.decode(data)
-    elif data.startswith(b"*"):
-        return Array.decode(data)
+    type = await reader.readexactly(1)
+    if type == b"+":
+        return await SimpleString.decode(reader)
+    elif type == b"-":
+        return await Error.decode(reader)
+    elif type == b":":
+        return await Integer.decode(reader)
+    elif type == b"$":
+        return await BulkString.decode(reader)
+    elif type == b"*":
+        return await Array.decode(reader)
     raise InvalidEncodingError
