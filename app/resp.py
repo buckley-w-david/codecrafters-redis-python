@@ -26,7 +26,7 @@ class SimpleString:
         s = await reader.readuntil(b"\r\n")
         return SimpleString(s[:-2])
 
-class Error(SimpleString):
+class Error(SimpleString, Exception):
     pass
 
 class Integer:

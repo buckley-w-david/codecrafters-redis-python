@@ -4,7 +4,7 @@ import time
 from . import resp
 
 def now():
-    return round(time.time() * 1000)
+    return time.time_ns() // 1_000_000
 
 class Command(enum.Enum):
     PING = b"PING"
@@ -35,6 +35,7 @@ async def set(argc: int, argv: list[resp.BulkString]) -> resp.SimpleString | res
     only_exists = False
     keep_ttl = False
     get = False
+    # TODO: Would be nice to have a more generic argument parsing routine
     while idx < len(argv)-1:
         match argv[idx].data:
             case b"PX":
@@ -65,11 +66,13 @@ async def set(argc: int, argv: list[resp.BulkString]) -> resp.SimpleString | res
         return resp.NULL
     if keep_ttl:
         expire = old_expire
-    out = resp.SimpleString(b"OK")
-    if get:
-        out = old_value if old_value else resp.NULL
 
     STORAGE[key.data] = (value, expire)
+
+    if get:
+        out = old_value if old_value else resp.NULL
+    else:
+        out = resp.SimpleString(b"OK")
     return out
 
 async def get(argc: int, argv: list[resp.BulkString]) -> resp.BulkString:

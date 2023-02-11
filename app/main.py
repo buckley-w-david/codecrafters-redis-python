@@ -6,9 +6,12 @@ from . import resp
 async def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     try:
         while True:
-            await reader.readexactly(1)
-            cmd = await resp.Array.decode(reader)
-            response = await command.exec(cmd)
+            try:
+                await reader.readexactly(1)
+                cmd = await resp.Array.decode(reader)
+                response = await command.exec(cmd)
+            except resp.Error as e:
+                response = e
             writer.write(response.encode())
             await writer.drain()
     except Exception:
