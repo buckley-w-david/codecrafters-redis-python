@@ -50,6 +50,7 @@ class BulkString:
 
     @classmethod
     async def decode(cls, reader: asyncio.StreamReader) -> 'BulkString':
+        # FIXME: Does this need to be able to handle nulls?
         i = await reader.readuntil(b"\r\n")
         length = int(i[:-2])
         s = await reader.readexactly(length)
@@ -57,7 +58,17 @@ class BulkString:
         await reader.readexactly(2)
         return BulkString(s)
 
-NULL = "$-1\r\n"
+class _NullBulkString(BulkString):
+    def __init__(self):
+        pass
+
+    def encode(self) -> bytes:
+        return b'$-1\r\n'
+
+    @classmethod
+    async def decode(cls, _reader: asyncio.StreamReader) -> '_NullBulkString':
+        raise NotImplementedError
+NULL = _NullBulkString()
 
 class Array:
     def __init__(self, data: list[RespObject]):

@@ -9,6 +9,7 @@ class Command(enum.Enum):
     GET  = b"GET"
 
 # command = Callable[[int, list[resp.RespObject]], Awaitable[resp.RespObject]]
+STORAGE = {}
 
 async def ping(argc, argv) -> resp.SimpleString:
     return resp.SimpleString(b"PONG")
@@ -16,17 +17,25 @@ async def ping(argc, argv) -> resp.SimpleString:
 async def echo(argc, argv) -> resp.SimpleString:
     return resp.SimpleString(argv[1].data)
 
-# async def set(argc, argv) -> resp.:
-#     pass
+async def set(argc, argv) -> resp.SimpleString:
+    key = argv[1]
+    value = argv[2]
 
-# async def get(argc, argv):
-#     pass
+    STORAGE[key.data] = value
+    return resp.SimpleString(b"OK")
+
+async def get(argc, argv) -> resp.BulkString:
+    key = argv[1].data
+    if key in STORAGE:
+        return STORAGE[key]
+    else:
+        return resp.NULL
 
 VTABLE = {
     Command.PING: ping,
     Command.ECHO: echo,
-    # Command.SET: set,
-    # Command.GET: get,
+    Command.SET: set,
+    Command.GET: get,
 }
 
 async def exec(command: resp.Array) -> resp.RespObject:
