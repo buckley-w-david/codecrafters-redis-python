@@ -37,7 +37,7 @@ async def set(argc: int, argv: list[resp.BulkString]) -> resp.SimpleString | res
     get = False
     # TODO: Would be nice to have a more generic argument parsing routine
     while idx < len(argv)-1:
-        match argv[idx].data:
+        match argv[idx].data.upper():
             case b"PX":
                 expire = now() + int(argv[idx+1].data)
                 idx += 1
